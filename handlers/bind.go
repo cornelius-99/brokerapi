@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -58,18 +59,19 @@ func (h APIHandler) Bind(w http.ResponseWriter, req *http.Request) {
 
 	binding, err := h.serviceBroker.Bind(req.Context(), instanceID, bindingID, details, asyncAllowed)
 	if err != nil {
-		switch err := err.(type) {
-		case *apiresponses.FailureResponse:
-			statusCode := err.ValidatedStatusCode(slog.New(logger))
-			errorResponse := err.ErrorResponse()
-			if err == apiresponses.ErrInstanceDoesNotExist {
+		var apiErr *apiresponses.FailureResponse
+		switch {
+		case errors.As(err, &apiErr):
+			statusCode := apiErr.ValidatedStatusCode(slog.New(logger))
+			errorResponse := apiErr.ErrorResponse()
+			if errors.Is(apiErr, apiresponses.ErrInstanceDoesNotExist) {
 				// work around ErrInstanceDoesNotExist having different pre-refactor behaviour to other actions
 				errorResponse = apiresponses.ErrorResponse{
-					Description: err.Error(),
+					Description: apiErr.Error(),
 				}
 				statusCode = http.StatusNotFound
 			}
-			logger.Error(err.LoggerAction(), err)
+			logger.Error(apiErr.LoggerAction(), err)
 			h.respond(w, statusCode, requestId, errorResponse)
 		default:
 			logger.Error(unknownErrorKey, err)

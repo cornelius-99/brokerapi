@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -45,10 +46,11 @@ func (h APIHandler) Unbind(w http.ResponseWriter, req *http.Request) {
 	asyncAllowed := req.FormValue("accepts_incomplete") == "true"
 	unbindResponse, err := h.serviceBroker.Unbind(req.Context(), instanceID, bindingID, details, asyncAllowed)
 	if err != nil {
-		switch err := err.(type) {
-		case *apiresponses.FailureResponse:
-			logger.Error(err.LoggerAction(), err)
-			h.respond(w, err.ValidatedStatusCode(slog.New(logger)), requestId, err.ErrorResponse())
+		var apiErr *apiresponses.FailureResponse
+		switch {
+		case errors.As(err, &apiErr):
+			logger.Error(apiErr.LoggerAction(), err)
+			h.respond(w, apiErr.ValidatedStatusCode(slog.New(logger)), requestId, apiErr.ErrorResponse())
 		default:
 			logger.Error(unknownErrorKey, err)
 			h.respond(w, http.StatusInternalServerError, requestId, apiresponses.ErrorResponse{

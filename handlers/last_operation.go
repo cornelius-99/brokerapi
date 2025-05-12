@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -29,10 +30,11 @@ func (h APIHandler) LastOperation(w http.ResponseWriter, req *http.Request) {
 
 	lastOperation, err := h.serviceBroker.LastOperation(req.Context(), instanceID, pollDetails)
 	if err != nil {
-		switch err := err.(type) {
-		case *apiresponses.FailureResponse:
-			logger.Error(err.LoggerAction(), err)
-			h.respond(w, err.ValidatedStatusCode(slog.New(logger)), requestId, err.ErrorResponse())
+		var apiErr *apiresponses.FailureResponse
+		switch {
+		case errors.As(err, &apiErr):
+			logger.Error(apiErr.LoggerAction(), err)
+			h.respond(w, apiErr.ValidatedStatusCode(slog.New(logger)), requestId, apiErr.ErrorResponse())
 		default:
 			logger.Error(unknownErrorKey, err)
 			h.respond(w, http.StatusInternalServerError, requestId, apiresponses.ErrorResponse{

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -94,10 +95,11 @@ func (h APIHandler) Provision(w http.ResponseWriter, req *http.Request) {
 	provisionResponse, err := h.serviceBroker.Provision(req.Context(), instanceID, details, asyncAllowed)
 
 	if err != nil {
-		switch err := err.(type) {
-		case *apiresponses.FailureResponse:
-			logger.Error(err.LoggerAction(), err)
-			h.respond(w, err.ValidatedStatusCode(slog.New(logger)), requestId, err.ErrorResponse())
+		var apiErr *apiresponses.FailureResponse
+		switch {
+		case errors.As(err, &apiErr):
+			logger.Error(apiErr.LoggerAction(), err)
+			h.respond(w, apiErr.ValidatedStatusCode(slog.New(logger)), requestId, apiErr.ErrorResponse())
 		default:
 			logger.Error(unknownErrorKey, err)
 			h.respond(w, http.StatusInternalServerError, requestId, apiresponses.ErrorResponse{
